@@ -48,17 +48,14 @@ extension Category {
     return siblings()
   }
 
-  static func addCategory(_ name: String, to acronym: Acronym,
-                          on req: Request) throws -> Future<Void> {
-      return Category.query(on: req).filter(\.name == name).first().flatMap(to: Void.self) { foundCategory in
-        if let existingCategory = foundCategory {
-          return acronym.categories.attach(existingCategory, on: req).transform(to: ())
-        } else {
-          let category = Category(name: name)
-          return category.save(on: req).flatMap(to: Void.self) { savedCategory in
-              return acronym.categories.attach(savedCategory, on: req).transform(to: ())
-          }
-        }
-      }
+  static func addCategory(_ name: String, to acronym: Acronym, on req: Request) throws {
+    let foundCategory = try Category.query(on: req).filter(\.name == name).first().wait()
+
+    if let existingCategory = foundCategory {
+        _ = try acronym.categories.attach(existingCategory, on: req).wait()
+    } else {
+        let category = try Category(name: name).save(on: req).wait()
+        _ = try acronym.categories.attach(category, on: req).wait()
+    }
   }
 }

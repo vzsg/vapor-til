@@ -33,97 +33,111 @@ import Authentication
 struct AcronymsController: RouteCollection {
   func boot(router: Router) throws {
     let acronymsRoutes = router.grouped("api", "acronyms")
-    acronymsRoutes.get(use: getAllHandler)
-    acronymsRoutes.get(Acronym.parameter, use: getHandler)
-    acronymsRoutes.get("search", use: searchHandler)
-    acronymsRoutes.get("first", use: getFirstHandler)
-    acronymsRoutes.get("sorted", use: sortedHandler)
-    acronymsRoutes.get(Acronym.parameter, "user", use: getUserHandler)
-    acronymsRoutes.get(Acronym.parameter, "categories", use: getCategoriesHandler)
+    acronymsRoutes.get(use: wrapDispatch(getAllHandler))
+    acronymsRoutes.get(Acronym.parameter, use: wrapDispatch(getHandler))
+    acronymsRoutes.get("search", use: wrapDispatch(searchHandler))
+    acronymsRoutes.get("first", use: wrapDispatch(getFirstHandler))
+    acronymsRoutes.get("sorted", use: wrapDispatch(sortedHandler))
+    acronymsRoutes.get(Acronym.parameter, "user", use: wrapDispatch(getUserHandler))
+    acronymsRoutes.get(Acronym.parameter, "categories", use: wrapDispatch(getCategoriesHandler))
 
     let tokenAuthMiddleware = User.tokenAuthMiddleware()
     let guardAuthMiddleware = User.guardAuthMiddleware()
     let tokenAuthGroup = acronymsRoutes.grouped(tokenAuthMiddleware, guardAuthMiddleware)
-    tokenAuthGroup.post(AcronymCreateData.self, use: createHandler)
-    tokenAuthGroup.delete(Acronym.parameter, use: deleteHandler)
-    tokenAuthGroup.put(Acronym.parameter, use: updateHandler)
-    tokenAuthGroup.post(Acronym.parameter, "categories", Category.parameter, use: addCategoriesHandler)
-    tokenAuthGroup.delete(Acronym.parameter, "categories", Category.parameter, use: removeCategoriesHandler)
+    tokenAuthGroup.post(AcronymCreateData.self, use: wrapDispatch(createHandler))
+    tokenAuthGroup.delete(Acronym.parameter, use: wrapDispatch(deleteHandler))
+    tokenAuthGroup.put(Acronym.parameter, use: wrapDispatch(updateHandler))
+    tokenAuthGroup.post(Acronym.parameter, "categories", Category.parameter, use: wrapDispatch(addCategoriesHandler))
+    tokenAuthGroup.delete(Acronym.parameter, "categories", Category.parameter, use: wrapDispatch(removeCategoriesHandler))
   }
 
-  func getAllHandler(_ req: Request) throws -> Future<[Acronym]> {
-    return Acronym.query(on: req).all()
+  func getAllHandler(_ req: Request) throws -> [Acronym] {
+    return try Acronym.query(on: req)
+      .all()
+      .wait()
   }
 
-  func createHandler(_ req: Request, data: AcronymCreateData) throws -> Future<Acronym> {
+  func createHandler(_ req: Request, data: AcronymCreateData) throws -> Acronym {
     let user = try req.requireAuthenticated(User.self)
     let acronym = try Acronym(short: data.short, long: data.long, userID: user.requireID())
-    return acronym.save(on: req)
+    return try acronym.save(on: req).wait()
   }
 
-  func getHandler(_ req: Request) throws -> Future<Acronym> {
-    return try req.parameters.next(Acronym.self)
+  func getHandler(_ req: Request) throws -> Acronym {
+    return try req.parameters.next(Acronym.self).wait()
   }
 
-  func updateHandler(_ req: Request) throws -> Future<Acronym> {
-    return try flatMap(to: Acronym.self, req.parameters.next(Acronym.self), req.content.decode(AcronymCreateData.self)) { acronym, updateData in
-      acronym.short = updateData.short
-      acronym.long = updateData.long
-      let user = try req.requireAuthenticated(User.self)
-      acronym.userID = try user.requireID()
-      return acronym.save(on: req)
-    }
+  func updateHandler(_ req: Request) throws -> Acronym {
+    let acronym = try req.parameters.next(Acronym.self).wait()
+    let updateData = try req.content.decode(AcronymCreateData.self).wait()
+
+    acronym.short = updateData.short
+    acronym.long = updateData.long
+    let user = try req.requireAuthenticated(User.self)
+    acronym.userID = try user.requireID()
+
+    return try acronym.save(on: req).wait()
   }
 
-  func deleteHandler(_ req: Request) throws -> Future<HTTPStatus> {
-    return try req.parameters.next(Acronym.self).delete(on: req).transform(to: HTTPStatus.noContent)
+  func deleteHandler(_ req: Request) throws -> HTTPStatus {
+    let acronym = try req.parameters.next(Acronym.self).wait()
+    try acronym.delete(on: req).wait()
+
+    return .noContent
   }
 
-  func searchHandler(_ req: Request) throws -> Future<[Acronym]> {
+  func searchHandler(_ req: Request) throws -> [Acronym] {
     guard let searchTerm = req.query[String.self, at: "term"] else {
       throw Abort(.badRequest)
     }
-    return Acronym.query(on: req).group(.or) { or in
+
+
+    return try Acronym.query(on: req).group(.or) { or in
       or.filter(\.short == searchTerm)
       or.filter(\.long == searchTerm)
-    }.all()
+    }.all().wait()
   }
 
-  func getFirstHandler(_ req: Request) throws -> Future<Acronym> {
-    return Acronym.query(on: req).first().map(to: Acronym.self) { acronym in
-      guard let acronym = acronym else {
+  func getFirstHandler(_ req: Request) throws -> Acronym {
+    guard let acronym = try Acronym.query(on: req).first().wait() else {
         throw Abort(.notFound)
-      }
-      return acronym
     }
+
+    return acronym
   }
 
-  func sortedHandler(_ req: Request) throws -> Future<[Acronym]> {
-    return Acronym.query(on: req).sort(\.short, .ascending).all()
+  func sortedHandler(_ req: Request) throws -> [Acronym] {
+    return try Acronym.query(on: req).sort(\.short, .ascending).all().wait()
   }
 
-  func getUserHandler(_ req: Request) throws -> Future<User.Public> {
-    return try req.parameters.next(Acronym.self).flatMap(to: User.Public.self) { acronym in
-      acronym.user.get(on: req).convertToPublic()
-    }
+  func getUserHandler(_ req: Request) throws -> User.Public {
+    let acronym = try req.parameters.next(Acronym.self).wait()
+
+    return try acronym.user.get(on: req).wait()
+      .convertToPublic()
   }
 
-  func addCategoriesHandler(_ req: Request) throws -> Future<HTTPStatus> {
-    return try flatMap(to: HTTPStatus.self, req.parameters.next(Acronym.self), req.parameters.next(Category.self)) { acronym, category in
-      return acronym.categories.attach(category, on: req).transform(to: .created)
-    }
+  func addCategoriesHandler(_ req: Request) throws -> HTTPStatus {
+    let acronym = try req.parameters.next(Acronym.self).wait()
+    let category = try req.parameters.next(Category.self).wait()
+
+    _ = try acronym.categories.attach(category, on: req).wait()
+
+    return .created
   }
 
-  func getCategoriesHandler(_ req: Request) throws -> Future<[Category]> {
-    return try req.parameters.next(Acronym.self).flatMap(to: [Category].self) { acronym in
-      try acronym.categories.query(on: req).all()
-    }
+  func getCategoriesHandler(_ req: Request) throws -> [Category] {
+    let acronym = try req.parameters.next(Acronym.self).wait()
+    return try acronym.categories.query(on: req).all().wait()
   }
 
-  func removeCategoriesHandler(_ req: Request) throws -> Future<HTTPStatus> {
-    return try flatMap(to: HTTPStatus.self, req.parameters.next(Acronym.self), req.parameters.next(Category.self)) { acronym, category in
-      return acronym.categories.detach(category, on: req).transform(to: .noContent)
-    }
+  func removeCategoriesHandler(_ req: Request) throws -> HTTPStatus {
+    let acronym = try req.parameters.next(Acronym.self).wait()
+    let category = try req.parameters.next(Category.self).wait()
+
+    _ = try acronym.categories.detach(category, on: req).wait()
+
+    return .noContent
   }
 }
 

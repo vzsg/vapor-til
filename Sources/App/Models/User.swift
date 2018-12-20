@@ -82,14 +82,6 @@ extension User {
   }
 }
 
-extension Future where T: User {
-  func convertToPublic() -> Future<User.Public> {
-    return self.map(to: User.Public.self) { user in
-      return user.convertToPublic()
-    }
-  }
-}
-
 extension User: BasicAuthenticatable {
   static let usernameKey: UsernameKey = \User.username
   static let passwordKey: PasswordKey = \User.password
