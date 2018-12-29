@@ -1,13 +1,11 @@
 import Vapor
 import Dispatch
 
-private let queue = DispatchQueue(label: "dispatched_route_queue", attributes: .concurrent)
-
-func wrapDispatch<T>(_ closure: @escaping (Request) throws -> T) -> (Request) -> Future<T> {
+func dispatch<T>(_ closure: @escaping (Request) throws -> T) -> (Request) -> Future<T> {
   return { request in
     let promise = request.eventLoop.newPromise(T.self)
 
-    queue.async {
+    DispatchQueue.global().async {
       do {
         let result = try closure(request)
         promise.succeed(result: result)
@@ -20,11 +18,11 @@ func wrapDispatch<T>(_ closure: @escaping (Request) throws -> T) -> (Request) ->
   }
 }
 
-func wrapDispatch<T, U>(_ closure: @escaping (Request, U) throws -> T) -> (Request, U) -> Future<T> {
+func dispatch<T, U>(_ closure: @escaping (Request, U) throws -> T) -> (Request, U) -> Future<T> {
   return { request, param in
     let promise = request.eventLoop.newPromise(T.self)
 
-    queue.async {
+    DispatchQueue.global().async {
       do {
         let result = try closure(request, param)
         promise.succeed(result: result)

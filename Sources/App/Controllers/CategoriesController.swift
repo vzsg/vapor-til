@@ -31,14 +31,14 @@ import Vapor
 struct CategoriesController: RouteCollection {
   func boot(router: Router) throws {
     let categoriesRoute = router.grouped("api", "categories")
-    categoriesRoute.get(use: wrapDispatch(getAllHandler))
-    categoriesRoute.get(Category.parameter, use: wrapDispatch(getHandler))
-    categoriesRoute.get(Category.parameter, "acronyms", use: wrapDispatch(getAcronymsHandler))
+    categoriesRoute.get(use: dispatch(getAllHandler))
+    categoriesRoute.get(Category.parameter, use: dispatch(getHandler))
+    categoriesRoute.get(Category.parameter, "acronyms", use: dispatch(getAcronymsHandler))
 
     let tokenAuthMiddleware = User.tokenAuthMiddleware()
     let guardAuthMiddleware = User.guardAuthMiddleware()
     let tokenAuthGroup = categoriesRoute.grouped(tokenAuthMiddleware, guardAuthMiddleware)
-    tokenAuthGroup.post(Category.self, use: wrapDispatch(createHandler))
+    tokenAuthGroup.post(Category.self, use: dispatch(createHandler))
   }
 
   func createHandler(_ req: Request, category: Category) throws -> Category {

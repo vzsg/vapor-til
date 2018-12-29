@@ -33,22 +33,22 @@ import Authentication
 struct AcronymsController: RouteCollection {
   func boot(router: Router) throws {
     let acronymsRoutes = router.grouped("api", "acronyms")
-    acronymsRoutes.get(use: wrapDispatch(getAllHandler))
-    acronymsRoutes.get(Acronym.parameter, use: wrapDispatch(getHandler))
-    acronymsRoutes.get("search", use: wrapDispatch(searchHandler))
-    acronymsRoutes.get("first", use: wrapDispatch(getFirstHandler))
-    acronymsRoutes.get("sorted", use: wrapDispatch(sortedHandler))
-    acronymsRoutes.get(Acronym.parameter, "user", use: wrapDispatch(getUserHandler))
-    acronymsRoutes.get(Acronym.parameter, "categories", use: wrapDispatch(getCategoriesHandler))
+    acronymsRoutes.get(use: dispatch(getAllHandler))
+    acronymsRoutes.get(Acronym.parameter, use: dispatch(getHandler))
+    acronymsRoutes.get("search", use: dispatch(searchHandler))
+    acronymsRoutes.get("first", use: dispatch(getFirstHandler))
+    acronymsRoutes.get("sorted", use: dispatch(sortedHandler))
+    acronymsRoutes.get(Acronym.parameter, "user", use: dispatch(getUserHandler))
+    acronymsRoutes.get(Acronym.parameter, "categories", use: dispatch(getCategoriesHandler))
 
     let tokenAuthMiddleware = User.tokenAuthMiddleware()
     let guardAuthMiddleware = User.guardAuthMiddleware()
     let tokenAuthGroup = acronymsRoutes.grouped(tokenAuthMiddleware, guardAuthMiddleware)
-    tokenAuthGroup.post(AcronymCreateData.self, use: wrapDispatch(createHandler))
-    tokenAuthGroup.delete(Acronym.parameter, use: wrapDispatch(deleteHandler))
-    tokenAuthGroup.put(Acronym.parameter, use: wrapDispatch(updateHandler))
-    tokenAuthGroup.post(Acronym.parameter, "categories", Category.parameter, use: wrapDispatch(addCategoriesHandler))
-    tokenAuthGroup.delete(Acronym.parameter, "categories", Category.parameter, use: wrapDispatch(removeCategoriesHandler))
+    tokenAuthGroup.post(AcronymCreateData.self, use: dispatch(createHandler))
+    tokenAuthGroup.delete(Acronym.parameter, use: dispatch(deleteHandler))
+    tokenAuthGroup.put(Acronym.parameter, use: dispatch(updateHandler))
+    tokenAuthGroup.post(Acronym.parameter, "categories", Category.parameter, use: dispatch(addCategoriesHandler))
+    tokenAuthGroup.delete(Acronym.parameter, "categories", Category.parameter, use: dispatch(removeCategoriesHandler))
   }
 
   func getAllHandler(_ req: Request) throws -> [Acronym] {
